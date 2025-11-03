@@ -63,7 +63,19 @@ package vga_data is
 				-- add data here
 				-- 800x600 @ 60Hz
 				-- clock 40 MHz
-				--THIS IS FOR GRAD ONLY
+				horizontal => (
+						active => 800,
+						front_porch => ,
+						sync_width => ,
+						back_porch => 
+					),
+				vertical => (
+						active => 600,
+						front_porch => ,
+						sync_width => ,
+						back_porch => 
+					),
+				sync_polarity => 
 			)
 		);
 
