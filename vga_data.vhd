@@ -31,38 +31,39 @@ package vga_data is
 				-- 1920x1080 @ 60 Hz
 				-- clock 148.5 MHz
 				horizontal => (
-						active => ,				-- active area in pixels
-						front_porch => ,		-- in pixels
-						sync_width => ,			-- in pixels
-						back_porch => 			-- in pixels
+						active => 1920,				-- active area in pixels
+						front_porch => 88,		-- in pixels
+						sync_width => 44,			-- in pixels
+						back_porch => 148			-- in pixels
 					),
 				vertical => (
-						active => ,				-- active area in lines
-						front_porch => ,		-- in lines
-						sync_width => ,			-- in lines
-						back_porch => 			-- in lines
+						active => 1080,				-- active area in lines
+						front_porch => 4,		-- in lines
+						sync_width => 5,			-- in lines
+						back_porch => 36			-- in lines
 					),
 				sync_polarity => active_high
 			), (
 				-- 640x480 @ 60 Hz
 				-- clock 25.175 MHz
 				horizontal => (
-						active => ,
-						front_porch => ,
-						sync_width => ,
-						back_porch => 
+						active => 640,
+						front_porch => 16,
+						sync_width => 96,
+						back_porch => 48
 					),
 				vertical => (
-						active => ,
-						front_porch => ,
-						sync_width => ,
-						back_porch => 
+						active => 480,
+						front_porch => 10,
+						sync_width => 2,
+						back_porch => 33
 					),
-				sync_polarity => 
+				sync_polarity => active_low
 			), (
 				-- add data here
 				-- 800x600 @ 60Hz
 				-- clock 40 MHz
+				--THIS IS FOR GRAD ONLY
 			)
 		);
 
@@ -71,51 +72,97 @@ package vga_data is
 	constant vga_res_800x600:	vga_timing := ;	-- TODO: initialize
 	constant vga_res_default:	vga_timing := ;	-- TODO: initialize to your
 												-- target resolution
+    -- Return true if x coordinate is in visible horizontal range
+    function x_visible (
+        point: in coordinate;
+        vga_res: in vga_timing := vga_res_default
+    ) return boolean is
+    begin
+        return point.x < vga_res.h_visible;
+    end function x_visible;
 
-	---- TODO: some functions need to be implemented
-	-- return true if the x coordinate is on the visible area
-	function x_visible (
-			point:		in	coordinate;
-			vga_res:	in	vga_timing := vga_res_default
-		) return boolean;
 
-	-- return true if the y coordinate (line) is on the visible area
-	function y_visible (
-			point:		in	coordinate;
-			vga_res:	in	vga_timing := vga_res_default
-		) return boolean;
+    -- Return true if y coordinate is in visible vertical range
+    function y_visible (
+        point: in coordinate;
+        vga_res: in vga_timing := vga_res_default
+    ) return boolean is
+    begin
+        return point.y < vga_res.v_visible;
+    end function y_visible;
 
-	-- return true if the point is on the visible area
-	function point_visible (
-			point:		in	coordinate;
-			vga_res:	in	vga_timing := vga_res_default
-		) return boolean;
 
-	-- make a coordinate and return it
-	function make_coordinate (
-			x, y:		in	natural
-		) return coordinate;
+    -- Return true if both x and y coordinates are in visible range
+    function point_visible (
+        point: in coordinate;
+        vga_res: in vga_timing := vga_res_default
+    ) return boolean is
+    begin
+        return x_visible(point, vga_res) and y_visible(point, vga_res);
+    end function point_visible;
 
-	-- compute the next coordinate by incrementing the current coordinate
-	-- and return the new coordinate
-	function next_coordinate (
-			point:		in	coordinate;
-			vga_res:	in	vga_timing := vga_res_default
-		) return coordinate;
 
-	-- generate a horizontal sync pulse if we are in the hsync period
-	function do_horizontal_sync (
-			point:		in	coordinate;
-			vga_res:	in	vga_timing := vga_res_default
-		) return std_logic;
+    -- Create and return a coordinate record
+    function make_coordinate (
+        x, y: in natural
+    ) return coordinate is
+        variable ret: coordinate;
+    begin
+        ret.x := x;
+        ret.y := y;
+        return ret;
+    end function make_coordinate;
 
-	-- generate a vertical sync pulse if we are in the vsync period
-	function do_vertical_sync (
-			point:		in	coordinate;
-			vga_res:	in	vga_timing := vga_res_default
-		) return std_logic;
 
-end package vga_data;
+    -- Compute the next coordinate and wrap around properly
+    function next_coordinate (
+        point: in coordinate;
+        vga_res: in vga_timing := vga_res_default
+    ) return coordinate is
+        variable ret: coordinate := point;
+    begin
+        ret.x := ret.x + 1;
+        -- End of line → reset x and move to next line
+        if ret.x = vga_res.h_total then
+            ret.x := 0;
+            ret.y := ret.y + 1;
+            -- End of frame → reset y
+            if ret.y = vga_res.v_total then
+                ret.y := 0;
+            end if;
+        end if;
+        return ret;
+    end function next_coordinate;
+
+
+    -- Generate horizontal sync signal (active low)
+    function do_horizontal_sync (
+        point: in coordinate;
+        vga_res: in vga_timing := vga_res_default
+    ) return std_logic is
+    begin
+        if (point.x >= vga_res.h_sync_start) and (point.x < vga_res.h_sync_end) then
+            return '0';  -- active low pulse
+        else
+            return '1';
+        end if;
+    end function do_horizontal_sync;
+
+
+    -- Generate vertical sync signal (active low)
+    function do_vertical_sync (
+        point: in coordinate;
+        vga_res: in vga_timing := vga_res_default
+    ) return std_logic is
+    begin
+        if (point.y >= vga_res.v_sync_start) and (point.y < vga_res.v_sync_end) then
+            return '0';  -- active low pulse
+        else
+            return '1';
+        end if;
+    end function do_vertical_sync;
+
+end package body vga_data;
 
 package body vga_data is
 
@@ -221,6 +268,11 @@ package body vga_data is
 
 		if ret.x = timing_range(vga_res, horizontal) then
 			ret.x := 0;
+			ret.y := ret.y + 1;
+
+			if ret.y = timing_range(vga_res, vertical) then
+				ret.y := 0;
+			end if;
 		end if;
 
 
