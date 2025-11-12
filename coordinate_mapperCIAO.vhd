@@ -1,3 +1,14 @@
+library ieee; 
+use ieee.std_logic_1164.all; 
+use ieee.numeric_std.all;
+
+library ads; 
+use ads.ads_fixed.all; 
+use ads.ads_complex_pkg.all; 
+
+library vga; 
+use vga.vga_data.all;
+
 entity coordinate_mapper is
     generic (
         -- Viewing window for set
