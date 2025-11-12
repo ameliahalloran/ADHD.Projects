@@ -12,14 +12,18 @@ entity mandelbrot_pipeline is
     port (
         clock:          in  std_logic;
         reset:          in  std_logic;
+
+        -- mode selection
+        julia_mode:     in std_logic; -- '1' for julia, '0' for mandelbrot
+        julia_c         in ads_complex; -- Constant c value for Julia mode
         
-        -- Input: seed value c for this pixel
-        c_in:           in  ads_complex;
-        c_valid:        in  boolean;  -- True when c_in is valid
+        -- Input: seed value c for this pixel (c for mandelbrot, z for julia)
+        seed_in:        in  ads_complex;
+        seed_valid:     in  boolean;
         
         -- Output: iteration count for color mapping
         iter_out:       out natural range 0 to max_iterations;
-        iter_valid:     out boolean  -- True when iter_out is valid
+        iter_valid:     out boolean
     );
 end entity mandelbrot_pipeline;
 
@@ -62,11 +66,14 @@ architecture structural of mandelbrot_pipeline is
     
 begin
     -- Input to first stage
-    z_pipe(0) <= complex_zero;  -- Start with z = 0
-    c_pipe(0) <= c_in;
+    -- Mandelbrot: z=0, c=seed_in
+    -- Julia:      z=seed_in, c=julia_c
+    z_pipe(0) <= seed_in when julia_mode = '1' else complex_zero;
+    c_pipe(0) <= julia_c when julia_mode = '1' else seed_in;
+    
     escaped_pipe(0) <= false;
     iter_pipe(0) <= max_iterations;
-    valid_pipe(0) <= '1' when c_valid else '0';
+    valid_pipe(0) <= '1' when seed_valid else '0';
     
     -- Generate pipeline stages
     gen_stages: for i in 0 to max_iterations-1 generate
