@@ -11,11 +11,11 @@ entity mandelbrot_pipeline is
     );
     port (
         clock:          in  std_logic;
-        reset:          in  std_logic;
+        reset:         in  std_logic;
 
         -- mode selection
         julia_mode:     in std_logic; -- '1' for julia, '0' for mandelbrot
-        julia_c         in ads_complex; -- Constant c value for Julia mode
+        julia_c:        in ads_complex; -- Constant c value for Julia mode
         
         -- Input: seed value c for this pixel (c for mandelbrot, z for julia)
         seed_in:        in  ads_complex;
