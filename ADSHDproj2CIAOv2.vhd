@@ -51,18 +51,14 @@ architecture structural of ADSHDproj2CIAOv2 is
     end component;
     
     component coordinate_mapper is
-        generic (
-            mandel_re_min: real;
-            mandel_re_max: real;
-            mandel_im_min: real;
-            mandel_im_max: real;
-            julia_re_min: real;
-            julia_re_max: real;
-            julia_im_min: real;
-            julia_im_max: real;
-            screen_width: natural;
-            screen_height: natural
-        );
+    generic (
+        re_min: real;
+        re_max: real;
+        im_min: real;
+        im_max: real;
+        screen_width: natural;
+        screen_height: natural
+    );
         port (
             clock:      in  std_logic;
             reset:      in  std_logic;
@@ -160,16 +156,10 @@ begin
     -- Coordinate mapper with dual viewing windows
     coord_map_inst: coordinate_mapper
         generic map (
-            -- Mandelbrot window
-            mandel_re_min => -2.2,
-            mandel_re_max => 1.0,
-            mandel_im_min => -1.2,
-            mandel_im_max => 1.2,
-            -- Julia window (centered on origin)
-            julia_re_min => -2.0,
-            julia_re_max => 2.0,
-            julia_im_min => -1.5,
-            julia_im_max => 1.5,
+            re_min => -2.2,
+            re_max => 1.0,
+            im_min => -1.2,
+            im_max => 1.2,
             screen_width => vga_res.horizontal.active,
             screen_height => vga_res.vertical.active
         )
