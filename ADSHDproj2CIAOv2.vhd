@@ -51,14 +51,18 @@ architecture structural of ADSHDproj2CIAOv2 is
     end component;
     
     component coordinate_mapper is
-    generic (
-        re_min: real;
-        re_max: real;
-        im_min: real;
-        im_max: real;
-        screen_width: natural;
-        screen_height: natural
-    );
+        generic (
+            mandel_re_min: real;
+            mandel_re_max: real;
+            mandel_im_min: real;
+            mandel_im_max: real;
+            julia_re_min: real;
+            julia_re_max: real;
+            julia_im_min: real;
+            julia_im_max: real;
+            screen_width: natural;
+            screen_height: natural
+        );
         port (
             clock:      in  std_logic;
             reset:      in  std_logic;
@@ -115,6 +119,7 @@ architecture structural of ADSHDproj2CIAOv2 is
     signal seed_value:      ads_complex;
     signal seed_is_valid:   boolean;
     signal iteration_count: natural range 0 to MAX_ITER;
+    signal z0_value: ads_complex;
     signal iter_is_valid:   boolean;
     signal pixel_color:     rgb_color;
     signal color_is_valid:  boolean;
@@ -156,10 +161,16 @@ begin
     -- Coordinate mapper with dual viewing windows
     coord_map_inst: coordinate_mapper
         generic map (
-            re_min => -2.2,
-            re_max => 1.0,
-            im_min => -1.2,
-            im_max => 1.2,
+            -- Mandelbrot window
+            mandel_re_min => -2.2,
+            mandel_re_max => 1.0,
+            mandel_im_min => -1.2,
+            mandel_im_max => 1.2,
+            -- Julia window (centered on origin)
+            julia_re_min => -2.0,
+            julia_re_max => 2.0,
+            julia_im_min => -1.5,
+            julia_im_max => 1.5,
             screen_width => vga_res.horizontal.active,
             screen_height => vga_res.vertical.active
         )
@@ -183,7 +194,7 @@ begin
             reset      => reset_n,
             julia_mode => julia_mode,
             julia_c    => julia_c_value,
-            seed_in    => seed_value,
+            seed_in    => z0_value,
             seed_valid => seed_is_valid,
             iter_out   => iteration_count,
             iter_valid => iter_is_valid
