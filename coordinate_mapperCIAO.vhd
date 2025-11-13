@@ -1,21 +1,27 @@
-library ieee; 
-use ieee.std_logic_1164.all; 
+library ieee;
+use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-library ads; 
-use ads.ads_fixed.all; 
-use ads.ads_complex_pkg.all; 
+library ads;
+use ads.ads_fixed.all;
+use ads.ads_complex_pkg.all;
 
-library vga; 
+library vga;
 use vga.vga_data.all;
 
 entity coordinate_mapper is
     generic (
-        -- Viewing window for set
+        -- Mandelbrot view window
         re_min: real := -2.2;
         re_max: real := 1.0;
         im_min: real := -1.2;
         im_max: real := 1.2;
+
+        -- Julia view window
+        julia_re_min: real := -1.5;
+        julia_re_max: real := 1.5;
+        julia_im_min: real := -1.5;
+        julia_im_max: real := 1.5;
 
         -- Screen resolution
         screen_width: natural := 640;
@@ -41,19 +47,33 @@ entity coordinate_mapper is
 end entity coordinate_mapper;
 
 architecture rtl of coordinate_mapper is
-    -- constants as before...
-    constant re_min_fx   : ads_sfixed := to_ads_sfixed(re_min);
-    constant re_max_fx   : ads_sfixed := to_ads_sfixed(re_max);
-    constant im_min_fx   : ads_sfixed := to_ads_sfixed(im_min);
-    constant im_max_fx   : ads_sfixed := to_ads_sfixed(im_max);
 
-    constant re_range_fx : ads_sfixed := to_ads_sfixed(re_max - re_min);
-    constant im_range_fx : ads_sfixed := to_ads_sfixed(im_max - im_min);
-
+    signal re_min_fx, re_max_fx, im_min_fx, im_max_fx : ads_sfixed;
+    signal re_range_fx, im_range_fx : ads_sfixed;
     signal z0_reg, c_reg : ads_complex;
     signal valid_reg     : boolean;
 
 begin
+    -- Set selected viewport dynamically
+    process(julia_mode)
+    begin
+        if julia_mode then
+            re_min_fx   <= to_ads_sfixed(julia_re_min);
+            re_max_fx   <= to_ads_sfixed(julia_re_max);
+            im_min_fx   <= to_ads_sfixed(julia_im_min);
+            im_max_fx   <= to_ads_sfixed(julia_im_max);
+        else
+            re_min_fx   <= to_ads_sfixed(re_min);
+            re_max_fx   <= to_ads_sfixed(re_max);
+            im_min_fx   <= to_ads_sfixed(im_min);
+            im_max_fx   <= to_ads_sfixed(im_max);
+        end if;
+    end process;
+
+    -- Compute scaling range
+    re_range_fx <= re_max_fx - re_min_fx;
+    im_range_fx <= im_max_fx - im_min_fx;
+
     process(clock, reset)
         variable x_fx, y_fx     : ads_sfixed;
         variable w_fx, h_fx     : ads_sfixed;
