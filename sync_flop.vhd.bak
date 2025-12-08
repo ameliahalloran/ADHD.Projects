@@ -1,0 +1,27 @@
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity sync_flop is
+    port (
+        clk     : in  std_logic;   -- destination clock domain
+        reset_n : in  std_logic;
+        din     : in  std_logic;   -- async input
+        dout    : out std_logic    -- synchronized output
+    );
+end entity sync_flop;
+
+architecture rtl of sync_flop is
+    signal sync_reg : std_logic_vector(1 downto 0);
+begin
+    process(clk, reset_n)
+    begin
+        if reset_n = '0' then
+            sync_reg <= (others => '0');
+        elsif rising_edge(clk) then
+            sync_reg(0) <= din;
+            sync_reg(1) <= sync_reg(0);
+        end if;
+    end process;
+
+    dout <= sync_reg(1);
+end architecture rtl;

@@ -1,0 +1,3 @@
+-- make an entity that takes in address and then converts it from binary to gray and then gray to binary, call upon this twice in the top level
+--get rid of the FIFO, flip flop is enough
+--make sure the temp is being actually sent to the display

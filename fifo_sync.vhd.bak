@@ -1,0 +1,120 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity fifo_sync is
+    generic (
+        DATA_WIDTH : positive := 12;  -- ADC output width
+        ADDR_WIDTH : positive := 4    -- FIFO depth = 2^ADDR_WIDTH
+    );
+    port (
+        -- Write domain (producer, ADC clock)
+        wr_clk   : in  std_logic;
+        wr_reset : in  std_logic;
+        wr_en    : in  std_logic;
+        din      : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+        full     : out std_logic;
+
+        -- Read domain (consumer, 50 MHz clock)
+        rd_clk   : in  std_logic;
+        rd_reset : in  std_logic;
+        rd_en    : in  std_logic;
+        dout     : out std_logic_vector(DATA_WIDTH-1 downto 0);
+        empty    : out std_logic
+    );
+end entity fifo_sync;
+
+architecture rtl of fifo_sync is
+    -- Memory
+    type ram_type is array (0 to 2**ADDR_WIDTH-1) of std_logic_vector(DATA_WIDTH-1 downto 0);
+    signal ram : ram_type;
+
+    -- Pointers
+    signal wr_ptr_bin, rd_ptr_bin : unsigned(ADDR_WIDTH downto 0);
+    signal wr_ptr_gray, rd_ptr_gray : std_logic_vector(ADDR_WIDTH downto 0);
+
+    -- Synchronized pointers
+    signal rd_ptr_gray_sync, wr_ptr_gray_sync : std_logic_vector(ADDR_WIDTH downto 0);
+    signal rd_ptr_bin_sync, wr_ptr_bin_sync   : unsigned(ADDR_WIDTH downto 0);
+
+begin
+    --------------------------------------------------------------------
+    -- Write logic
+    --------------------------------------------------------------------
+    process(wr_clk, wr_reset)
+    begin
+        if wr_reset = '1' then
+            wr_ptr_bin <= (others => '0');
+        elsif rising_edge(wr_clk) then
+            if wr_en = '1' and full = '0' then
+                ram(to_integer(wr_ptr_bin(ADDR_WIDTH-1 downto 0))) <= din;
+                wr_ptr_bin <= wr_ptr_bin + 1;
+            end if;
+        end if;
+    end process;
+
+    -- Binary to Gray
+    bin2gray_wr: entity work.bin_to_gray
+        generic map (input_width => ADDR_WIDTH+1)
+        port map (bin_in => std_logic_vector(wr_ptr_bin), gray_out => wr_ptr_gray);
+
+    -- Synchronize read pointer into write domain
+    sync_rd_ptr: for i in rd_ptr_gray'range generate
+        sync_inst: entity work.sync_flop
+            port map (
+                clk     => wr_clk,
+                reset_n => not wr_reset,
+                din     => rd_ptr_gray(i),
+                dout    => rd_ptr_gray_sync(i)
+            );
+    end generate;
+
+    -- Convert synchronized Gray back to binary
+    gray2bin_rd: entity work.gray_to_bin
+        generic map (input_width => ADDR_WIDTH+1)
+        port map (gray_in => rd_ptr_gray_sync, bin_out => std_logic_vector(rd_ptr_bin_sync));
+
+    -- Full flag
+    full <= '1' when (wr_ptr_bin(ADDR_WIDTH downto 0) = (rd_ptr_bin_sync + 2**ADDR_WIDTH)) else '0';
+
+    --------------------------------------------------------------------
+    -- Read logic
+    --------------------------------------------------------------------
+    process(rd_clk, rd_reset)
+    begin
+        if rd_reset = '1' then
+            rd_ptr_bin <= (others => '0');
+            dout <= (others => '0');
+        elsif rising_edge(rd_clk) then
+            if rd_en = '1' and empty = '0' then
+                dout <= ram(to_integer(rd_ptr_bin(ADDR_WIDTH-1 downto 0)));
+                rd_ptr_bin <= rd_ptr_bin + 1;
+            end if;
+        end if;
+    end process;
+
+    -- Binary to Gray
+    bin2gray_rd: entity work.bin_to_gray
+        generic map (input_width => ADDR_WIDTH+1)
+        port map (bin_in => std_logic_vector(rd_ptr_bin), gray_out => rd_ptr_gray);
+
+    -- Synchronize write pointer into read domain
+    sync_wr_ptr: for i in wr_ptr_gray'range generate
+        sync_inst: entity work.sync_flop
+            port map (
+                clk     => rd_clk,
+                reset_n => not rd_reset,
+                din     => wr_ptr_gray(i),
+                dout    => wr_ptr_gray_sync(i)
+            );
+    end generate;
+
+    -- Convert synchronized Gray back to binary
+    gray2bin_wr: entity work.gray_to_bin
+        generic map (input_width => ADDR_WIDTH+1)
+        port map (gray_in => wr_ptr_gray_sync, bin_out => std_logic_vector(wr_ptr_bin_sync));
+
+    -- Empty flag
+    empty <= '1' when (rd_ptr_bin = wr_ptr_bin_sync) else '0';
+
+end architecture rtl;
