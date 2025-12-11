@@ -1,0 +1,6 @@
+<testsuites name="results">
+  <testsuite name="all" package="all">
+    <property name="random_seed" value="1765426103" />
+    <testcase name="testbench" classname="tb_toplevel_wrapper" file="/home/codes/ADHD.Projects/testbench/tb_toplevel_wrapper.py" lineno="141" time="4.336579084396362" sim_time_ns="90.000001" ratio_time="20.753686084921867" />
+  </testsuite>
+</testsuites>

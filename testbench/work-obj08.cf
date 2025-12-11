@@ -1,0 +1,7 @@
+v 4
+file . "toplevel_wrapper.vhd" "122ebe6dc6140b80a60f1a7930cd94eac3f709ca" "20251211021609.480":
+  entity toplevel_wrapper at 1( 0) + 0 on 17;
+  architecture structure of toplevel_wrapper at 24( 623) + 0 on 18;
+file . "seven_seg_decoder.vhd" "6476b5b0276bcf2c373228af829b119e29db435c" "20251211021609.475":
+  entity seven_seg_decoder at 1( 0) + 0 on 15;
+  architecture rtl of seven_seg_decoder at 30( 934) + 0 on 16;

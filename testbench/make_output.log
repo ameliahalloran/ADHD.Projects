@@ -1,0 +1,15 @@
+rm -f results.xml
+"make" -f Makefile results.xml
+make[1]: Entering directory '/home/codes/ADHD.Projects/testbench'
+mkdir -p sim_build
+\
+/usr/bin/ghdl -i  --std=08 --workdir=sim_build --work=work ../vhdl/seven_seg_decoder.vhd ../vhdl/toplevel_wrapper.vhd && \
+/usr/bin/ghdl -m  --std=08 --workdir=sim_build -Psim_build --work=work toplevel_wrapper 
+/home/codes/miniconda3/lib/python3.13/site-packages/cocotb_tools/makefiles/simulators/Makefile.ghdl:78: Using MODULE is deprecated, please use COCOTB_TEST_MODULES instead.
+rm -f results.xml
+COCOTB_TEST_MODULES=tb_toplevel_wrapper COCOTB_TESTCASE= COCOTB_TEST_FILTER= COCOTB_TOPLEVEL=toplevel_wrapper TOPLEVEL_LANG=vhdl \
+ /usr/bin/ghdl -r  --time-resolution=ps --workdir=sim_build -Psim_build --work=work toplevel_wrapper  --vpi=/home/codes/miniconda3/lib/python3.13/site-packages/cocotb/libs/libcocotbvpi_ghdl.so   
+/usr/bin/ghdl-mcode:error: cannot find entity or configuration toplevel_wrapper
+make[1]: *** [/home/codes/miniconda3/lib/python3.13/site-packages/cocotb_tools/makefiles/simulators/Makefile.ghdl:78: results.xml] Error 1
+make[1]: Leaving directory '/home/codes/ADHD.Projects/testbench'
+make: *** [/home/codes/miniconda3/lib/python3.13/site-packages/cocotb_tools/makefiles/Makefile.inc:17: sim] Error 2
