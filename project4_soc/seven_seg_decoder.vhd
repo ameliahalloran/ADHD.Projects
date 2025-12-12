@@ -6,12 +6,11 @@ entity seven_seg_decoder is
   generic (
     lamp_mode_common_anode : boolean := true;
     decimal_support        : boolean := true;
-    implementer            : natural range 1 to 255 := 42;  -- Replace with your group number
+    implementer            : natural range 1 to 255 := 42;  -- Replace with actual group number
     revision               : natural range 0 to 255 := 1;
     num_digits             : positive := 6  -- DE1-SoC has 6 seven-segment displays
   );
   port (
-    -- Clock and Reset
     clk       : in  std_logic;
     reset_n   : in  std_logic;
     
@@ -39,7 +38,7 @@ architecture rtl of seven_seg_decoder is
   alias lamps_on     : std_logic is control_reg(0);
   alias show_decimal : std_logic is control_reg(1);
   
-  -- Binary Coded Decimal conversion function (provided in assignment)
+  -- Binary Coded Decimal conversion function
   function to_bcd (
     data_value: in std_logic_vector(15 downto 0)
   ) return std_logic_vector is
@@ -108,7 +107,7 @@ architecture rtl of seven_seg_decoder is
   
 begin
   
-  -- Build the features register (Figure 1)
+  -- Features register
   features_reg(31 downto 24) <= std_logic_vector(to_unsigned(implementer, 8));
   features_reg(23 downto 16) <= std_logic_vector(to_unsigned(revision, 8));
   features_reg(15 downto 8)  <= std_logic_vector(to_unsigned(num_digits, 8));
