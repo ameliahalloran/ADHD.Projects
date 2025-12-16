@@ -4,6 +4,9 @@ use ieee.numeric_std.all;
 use work.seven_segment_pkg.all;
 
 entity ADS_Project3_TopLevel is
+	generic (
+		lamp_mode: lamp_configuration := default_lamp_config
+	);
     port (
         clk_10mhz   : in  std_logic;
         clk_50mhz   : in  std_logic;
@@ -37,7 +40,7 @@ architecture rtl of ADS_Project3_TopLevel is
     signal fifo_full  : std_logic;
 
     -- Display
-    signal hex_digits : hex_digit_array(0 to 5);
+    -- signal hex_digits : hex_digit_array(0 to 5);
 
     -- Temperature
     signal temp_c : integer range -128 to 255;
@@ -135,7 +138,7 @@ begin
         variable temp_i  : integer;
     begin
         if reset = '1' then
-            hex_digits <= (others => 0);
+            -- hex_digits <= (others => 0);
             fifo_rd    <= '0';
             temp_c     <= 0;
 
@@ -159,21 +162,21 @@ begin
                 end if;
 
                 -- Display Celsius value (integer)
-                hex_digits(0) <= 1;--temp_c mod 10;
-                hex_digits(1) <= 2;--(temp_c / 10) mod 10;
-                hex_digits(2) <= 3;--(temp_c / 100) mod 10;
-                hex_digits(3) <= 4;
-                hex_digits(4) <= 5;
-                hex_digits(5) <= 6;
+--                hex_digits(0) <= 1;--temp_c mod 10;
+--                hex_digits(1) <= 2;--(temp_c / 10) mod 10;
+--                hex_digits(2) <= 3;--(temp_c / 100) mod 10;
+--                hex_digits(3) <= 4;
+--                hex_digits(4) <= 5;
+--                hex_digits(5) <= 6;
             end if;
         end if;
     end process;
 
-    seg_out(0) <= get_hex_digit(hex_digits(0));
-    seg_out(1) <= get_hex_digit(hex_digits(1));
-    seg_out(2) <= get_hex_digit(hex_digits(2));
-    seg_out(3) <= get_hex_digit(hex_digits(3));
-    seg_out(4) <= get_hex_digit(hex_digits(4));
-    seg_out(5) <= get_hex_digit(hex_digits(5));
+    seg_out(0) <= get_hex_digit(0, lamp_mode);
+    seg_out(1) <= get_hex_digit(1, lamp_mode);
+    seg_out(2) <= get_hex_digit(2, lamp_mode);
+    seg_out(3) <= get_hex_digit(3, lamp_mode);
+    seg_out(4) <= get_hex_digit(4, lamp_mode);
+    seg_out(5) <= get_hex_digit(5, lamp_mode);
 
 end architecture rtl;
