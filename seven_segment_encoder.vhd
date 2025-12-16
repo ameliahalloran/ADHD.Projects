@@ -5,7 +5,7 @@ use work.seven_segment_pkg.all;
 entity sevenseg_encoder is
     port (
         hex_in  : in hex_digit_array(0 to 5);
-        seg_out : out seven_segment_display_array(0 to 5)
+        seg_out : out seven_segment_array(0 to 5)
     );
 end entity;
 

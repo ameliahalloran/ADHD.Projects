@@ -17,36 +17,33 @@ entity adc_fsm1 is
 end entity adc_fsm1;
 
 architecture rtl of adc_fsm1 is
-	type state_type is (IDLE, START_CONV, WAIT_EOC, LATCH);
+	type state_type is (START_CONV, WAIT_EOC, LATCH);
 	signal state, next_state : state_type;
 	signal data_reg : natural range 0 to 2**12 - 1;
 begin
+
 	process(clk, reset_n)
 	begin
 		if reset_n = '0'then
-			state <= IDLE;
+			state <= START_CONV;
 			data_reg <= 0;
 		elsif rising_edge(clk) then
 			state <= next_state;
+			
 			if state = LATCH then
 				data_reg <= dout;
 			end if;
 		end if;
 	end process;
 	
-	process(state, start, eoc)
+	process(state, eoc)
     begin
         soc <= '0';
         data_valid <= '0';
         next_state <= state;
 
         case state is
-            when IDLE =>
-                if start = '1' then
-                    soc <= '1';
-                    next_state <= START_CONV;
-                end if;
-
+            
             when START_CONV =>
                 soc <= '1';
                 next_state <= WAIT_EOC;
@@ -58,10 +55,10 @@ begin
 
             when LATCH =>
                 data_valid <= '1';
-                next_state <= IDLE;
+                next_state <= START_CONV;
 
             when others =>
-                next_state <= IDLE;
+                next_state <= START_CONV;
         end case;
     end process;
 

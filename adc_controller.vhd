@@ -35,7 +35,7 @@ begin
 	 clk_dft <= clk_dft_sig;
 	 
     -- Instantiate FSM
-    fsm_inst: entity work.adc_fsm
+    fsm_inst: entity work.adc_fsm1
         port map (
             clk       => clk_dft_sig,
             reset_n   => reset_n,
@@ -44,7 +44,7 @@ begin
             dout      => dout_sig,
             soc       => soc_sig,
             data_valid=> data_valid_sig,
-            data_out  => data_out_sig
+            data_out1  => data_out_sig
         );
 
     -- Connect to FIFO
