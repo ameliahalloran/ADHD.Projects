@@ -8,19 +8,19 @@ entity fifo_sync is
         ADDR_WIDTH : natural := 4
     );
     port (
-        -- Write side
+        
         wr_clk   : in  std_logic;
         wr_reset : in  std_logic;
         wr_en    : in  std_logic;
         din      : in  std_logic_vector(DATA_WIDTH-1 downto 0);
 
-        -- Read side
+        
         rd_clk   : in  std_logic;
         rd_reset : in  std_logic;
         rd_en    : in  std_logic;
         dout     : out std_logic_vector(DATA_WIDTH-1 downto 0);
 
-        -- NEW STATUS OUTPUTS
+        
         empty    : out std_logic;
         full     : out std_logic
     );
@@ -28,51 +28,36 @@ end entity fifo_sync;
 
 architecture rtl of fifo_sync is
 
-    --------------------------------------------------------------------
-    -- FIFO parameters
-    --------------------------------------------------------------------
+    
     constant PTR_WIDTH : natural := ADDR_WIDTH + 1;
     constant DEPTH     : natural := 2**ADDR_WIDTH;
 
-    --------------------------------------------------------------------
-    -- Memory
-    --------------------------------------------------------------------
+    
     type ram_type is array (0 to DEPTH-1) of std_logic_vector(DATA_WIDTH-1 downto 0);
     signal ram : ram_type;
 
-    --------------------------------------------------------------------
-    -- Pointers (binary + gray)
-    --------------------------------------------------------------------
+    
     signal wr_ptr_bin  : unsigned(PTR_WIDTH-1 downto 0) := (others => '0');
     signal wr_ptr_gray : std_logic_vector(PTR_WIDTH-1 downto 0) := (others => '0');
 
     signal rd_ptr_bin  : unsigned(PTR_WIDTH-1 downto 0) := (others => '0');
     signal rd_ptr_gray : std_logic_vector(PTR_WIDTH-1 downto 0) := (others => '0');
 
-    --------------------------------------------------------------------
-    -- Crossed pointers (binary crossing)
-    --------------------------------------------------------------------
+    
     signal wr_ptr_bin_sync_to_rd : std_logic_vector(PTR_WIDTH-1 downto 0);
     signal rd_ptr_bin_sync_to_wr : std_logic_vector(PTR_WIDTH-1 downto 0);
 
-    -- Convert synced binary pointers back to gray for comparisons
     signal wr_ptr_gray_sync_to_rd : std_logic_vector(PTR_WIDTH-1 downto 0);
     signal rd_ptr_gray_sync_to_wr : std_logic_vector(PTR_WIDTH-1 downto 0);
 
-    --------------------------------------------------------------------
-    -- Status flags
-    --------------------------------------------------------------------
+    
     signal full_flag  : std_logic := '0';
     signal empty_flag : std_logic := '1';
 
-    --------------------------------------------------------------------
-    -- Output register
-    --------------------------------------------------------------------
+    
     signal dout_reg : std_logic_vector(DATA_WIDTH-1 downto 0) := (others => '0');
 
-    --------------------------------------------------------------------
-    -- Binary <-> Gray functions
-    --------------------------------------------------------------------
+    
     function bin_to_gray_f(b : unsigned) return std_logic_vector is
         variable g : unsigned(b'range);
     begin
@@ -94,14 +79,12 @@ architecture rtl of fifo_sync is
 
 begin
 
-    --------------------------------------------------------------------
-    -- Cross-domain sync: WRITE pointer into READ domain
-    --------------------------------------------------------------------
+    
     wr_ptr_sync_inst : entity work.crossing_addr
         generic map (ADDR_WIDTH => ADDR_WIDTH)
         port map (
-            data_in  => std_logic_vector(wr_ptr_bin),   -- FEED BINARY
-            data_out => wr_ptr_bin_sync_to_rd,          -- GET BINARY BACK
+            data_in  => std_logic_vector(wr_ptr_bin),   
+            data_out => wr_ptr_bin_sync_to_rd,          
             clk_a    => wr_clk,
             reset    => wr_reset,
             clk_b    => rd_clk
@@ -109,14 +92,12 @@ begin
 
     wr_ptr_gray_sync_to_rd <= bin_to_gray_f(unsigned(wr_ptr_bin_sync_to_rd));
 
-    --------------------------------------------------------------------
-    -- Cross-domain sync: READ pointer into WRITE domain
-    --------------------------------------------------------------------
+    
     rd_ptr_sync_inst : entity work.crossing_addr
         generic map (ADDR_WIDTH => ADDR_WIDTH)
         port map (
-            data_in  => std_logic_vector(rd_ptr_bin),   -- FEED BINARY
-            data_out => rd_ptr_bin_sync_to_wr,          -- GET BINARY BACK
+            data_in  => std_logic_vector(rd_ptr_bin),   
+            data_out => rd_ptr_bin_sync_to_wr,          
             clk_a    => rd_clk,
             reset    => rd_reset,
             clk_b    => wr_clk
@@ -124,9 +105,7 @@ begin
 
     rd_ptr_gray_sync_to_wr <= bin_to_gray_f(unsigned(rd_ptr_bin_sync_to_wr));
 
-    --------------------------------------------------------------------
-    -- WRITE DOMAIN
-    --------------------------------------------------------------------
+    
     process(wr_clk, wr_reset)
         variable wr_addr : natural;
         variable wr_ptr_bin_next  : unsigned(PTR_WIDTH-1 downto 0);
@@ -153,7 +132,7 @@ begin
             wr_ptr_bin  <= wr_ptr_bin_next;
             wr_ptr_gray <= wr_ptr_gray_next;
 
-            -- FULL detection
+            
             if (wr_ptr_gray_next(PTR_WIDTH-1 downto PTR_WIDTH-2) =
                     not rd_ptr_gray_sync_to_wr(PTR_WIDTH-1 downto PTR_WIDTH-2)) and
                (wr_ptr_gray_next(PTR_WIDTH-3 downto 0) =
@@ -165,9 +144,7 @@ begin
         end if;
     end process;
 
-    --------------------------------------------------------------------
-    -- READ DOMAIN
-    --------------------------------------------------------------------
+    
     process(rd_clk, rd_reset)
         variable rd_addr : natural;
         variable rd_ptr_bin_next  : unsigned(PTR_WIDTH-1 downto 0);
@@ -195,7 +172,7 @@ begin
             rd_ptr_bin  <= rd_ptr_bin_next;
             rd_ptr_gray <= rd_ptr_gray_next;
 
-            -- EMPTY detection
+            
             if wr_ptr_gray_sync_to_rd = rd_ptr_gray_next then
                 empty_flag <= '1';
             else
@@ -204,9 +181,7 @@ begin
         end if;
     end process;
 
-    --------------------------------------------------------------------
-    -- Outputs
-    --------------------------------------------------------------------
+   
     dout  <= dout_reg;
     empty <= empty_flag;
     full  <= full_flag;

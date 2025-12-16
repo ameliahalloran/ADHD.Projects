@@ -24,7 +24,7 @@ begin
     adc_inst: entity work.max10_adc
         port map (
             pll_clk => pll_clk,
-            chsel   => 0,        -- channel 0
+            chsel   => 17,        
             soc     => soc_sig,
             tsen    => tsen,
             dout    => dout_sig,
@@ -37,7 +37,7 @@ begin
     -- Instantiate FSM
     fsm_inst: entity work.adc_fsm1
         port map (
-            clk       => clk_dft_sig,
+            clk       => pll_clk,
             reset_n   => reset_n,
             start     => '1',         -- always trigger conversions
             eoc       => eoc_sig,

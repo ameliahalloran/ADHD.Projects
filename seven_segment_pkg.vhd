@@ -25,7 +25,7 @@ package seven_segment_pkg is
 	 type hex_digit_array is array(natural range <>) of hex_digit;
 	 
 	 
-	 constant default_lamp_config : lamp_configuration := common_cathode;
+	 constant default_lamp_config : lamp_configuration := common_anode;
 	 
 	 constant seven_segment_table : seven_segment_array(0 to 15) := (
         (a=>'0', b=>'0', c=>'0', d=>'0', e=>'0', f=>'0', g=>'1'), -- 0

@@ -14,16 +14,14 @@ end entity ADS_Project3_TopLevel;
 
 architecture rtl of ADS_Project3_TopLevel is
 
-    signal reset : std_logic;
-    signal adc_clk : std_logic;
+    signal reset    : std_logic;
+    signal adc_clk  : std_logic;
 
-    --------------------------------------------------------------------
-    -- ADC signals
-    --------------------------------------------------------------------
-    signal soc        : std_logic := '0';
-    signal eoc        : std_logic;
-    signal dout_int   : natural range 0 to 4095;
-    signal dout_vec   : std_logic_vector(11 downto 0);
+    -- ADC control
+    signal soc      : std_logic := '0';
+    signal eoc      : std_logic;
+    signal dout_int : natural range 0 to 4095;
+    signal dout_vec : std_logic_vector(11 downto 0);
 
     type state_type is (idle, start_conv, wait_eoc, latch_data);
     signal state : state_type := idle;
@@ -31,36 +29,33 @@ architecture rtl of ADS_Project3_TopLevel is
     signal adc_data_reg : std_logic_vector(11 downto 0);
     signal adc_ready    : std_logic := '0';
 
-    --------------------------------------------------------------------
     -- FIFO signals
-    --------------------------------------------------------------------
     signal fifo_dout  : std_logic_vector(11 downto 0);
     signal fifo_wr    : std_logic;
     signal fifo_rd    : std_logic;
     signal fifo_empty : std_logic;
     signal fifo_full  : std_logic;
 
-    --------------------------------------------------------------------
-    -- Display signals
-    --------------------------------------------------------------------
+    -- Display
     signal hex_digits : hex_digit_array(0 to 5);
+
+    -- Temperature
+    signal temp_c : integer range -128 to 255;
 
 begin
 
     reset <= not reset_n;
 
-    --------------------------------------------------------------------
-    -- PLL: derive ADC clock
-    --------------------------------------------------------------------
+   
     pll_inst : entity work.pll
         port map (
             inclk0 => clk_10mhz,
             c0     => adc_clk
         );
 
-    --------------------------------------------------------------------
-    -- ADC wrapper
-    --------------------------------------------------------------------
+   
+    -- MAX10 ADC (internal temperature sensor)
+    
     adc_inst : entity work.max10_adc
         port map (
             pll_clk => adc_clk,
@@ -75,7 +70,7 @@ begin
     dout_vec <= std_logic_vector(to_unsigned(dout_int, 12));
 
     --------------------------------------------------------------------
-    -- ADC FSM
+    -- ADC control FSM
     --------------------------------------------------------------------
     process(adc_clk, reset)
     begin
@@ -113,9 +108,7 @@ begin
 
     fifo_wr <= adc_ready;
 
-    --------------------------------------------------------------------
-    -- FIFO instance
-    --------------------------------------------------------------------
+    
     fifo_inst : entity work.fifo_sync
         generic map (
             DATA_WIDTH => 12,
@@ -136,15 +129,15 @@ begin
             full     => fifo_full
         );
 
-    --------------------------------------------------------------------
-    -- Consumer domain (50 MHz)
-    --------------------------------------------------------------------
+    
     process(clk_50mhz, reset)
-        variable value : integer;
+        variable adc_val : integer;
+        variable temp_i  : integer;
     begin
         if reset = '1' then
             hex_digits <= (others => 0);
             fifo_rd    <= '0';
+            temp_c     <= 0;
 
         elsif rising_edge(clk_50mhz) then
 
@@ -153,21 +146,29 @@ begin
             if fifo_empty = '0' then
                 fifo_rd <= '1';
 
-                value := to_integer(unsigned(fifo_dout));
+                adc_val := to_integer(unsigned(fifo_dout));
 
-                hex_digits(0) <= value mod 10;
-                hex_digits(1) <= (value / 10) mod 10;
-                hex_digits(2) <= (value / 100) mod 10;
-                hex_digits(3) <= (value / 1000) mod 10;
-                hex_digits(4) <= (value / 10000) mod 10;
-                hex_digits(5) <= (value / 100000) mod 10;
+                -- MAX10 temperature conversion (10M50)
+                -- T(°C) = (ADC_code - 1536) / 4
+                temp_i := (adc_val - 1536) / 4;
+
+                if temp_i < 0 then
+                    temp_c <= 0;     -- clamp negative temperatures to 0
+                else
+                    temp_c <= temp_i;
+                end if;
+
+                -- Display Celsius value (integer)
+                hex_digits(0) <= 1;--temp_c mod 10;
+                hex_digits(1) <= 2;--(temp_c / 10) mod 10;
+                hex_digits(2) <= 3;--(temp_c / 100) mod 10;
+                hex_digits(3) <= 4;
+                hex_digits(4) <= 5;
+                hex_digits(5) <= 6;
             end if;
         end if;
     end process;
 
-    --------------------------------------------------------------------
-    -- Drive seven-segment displays
-    --------------------------------------------------------------------
     seg_out(0) <= get_hex_digit(hex_digits(0));
     seg_out(1) <= get_hex_digit(hex_digits(1));
     seg_out(2) <= get_hex_digit(hex_digits(2));
