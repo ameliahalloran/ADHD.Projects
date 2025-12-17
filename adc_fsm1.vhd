@@ -4,78 +4,63 @@ use ieee.numeric_std.all;
 
 entity adc_fsm1 is 
     port(
-        clk        : in  std_logic;  -- system clock (use pll_clk, NOT clk_dft)
+        clk        : in  std_logic;  -- MUST be clk_dft
         reset_n    : in  std_logic;
-        start      : in  std_logic;  -- always '1' for continuous conversions
+        start      : in  std_logic;  -- tie to '1' for continuous conversions
         eoc        : in  std_logic;  -- end of conversion from ADC
         dout       : in  natural range 0 to 4095; -- ADC output
-        soc        : out std_logic;  -- start of conversion pulse
-        data_valid : out std_logic;  -- 1-cycle pulse when new data is ready
-        data_out1  : out natural range 0 to 4095  -- latched ADC value
+        soc        : out std_logic;  -- start of conversion (1 clk_dft pulse)
+        data_valid : out std_logic;  -- 1 clk_dft pulse
+        data_out1  : out natural range 0 to 4095
     );
 end entity adc_fsm1;
 
 architecture rtl of adc_fsm1 is
 
-    type state_type is (IDLE, START_PULSE, WAIT_EOC, LATCH);
-    signal state, next_state : state_type;
+    type state_type is (IDLE, SOC_PULSE, WAIT_EOC, LATCH);
+    signal state : state_type := IDLE;
 
-    signal data_reg : natural range 0 to 4095;
+    signal data_reg : natural range 0 to 4095 := 0;
 
 begin
 
-    
     process(clk, reset_n)
     begin
         if reset_n = '0' then
-            state    <= IDLE;
-            data_reg <= 0;
+            state      <= IDLE;
+            soc        <= '0';
+            data_valid <= '0';
+            data_reg   <= 0;
 
         elsif rising_edge(clk) then
-            state <= next_state;
+            -- defaults every cycle
+            soc        <= '0';
+            data_valid <= '0';
 
-            if state = LATCH then
-                data_reg <= dout;
-            end if;
+            case state is
+
+                when IDLE =>
+                    if start = '1' then
+                        soc   <= '1';          -- assert SOC for 1 cycle
+                        state <= SOC_PULSE;
+                    end if;
+
+                when SOC_PULSE =>
+                    -- SOC already deasserted by default
+                    state <= WAIT_EOC;
+
+                when WAIT_EOC =>
+                    if eoc = '1' then
+                        data_reg <= dout;      -- latch ADC data
+                        state    <= LATCH;
+                    end if;
+
+                when LATCH =>
+                    data_valid <= '1';         -- 1-cycle pulse
+                    state      <= IDLE;
+
+            end case;
         end if;
-    end process;
-
-    
-    process(state, start, eoc)
-    begin
-        -- defaults
-        soc        <= '0';
-        data_valid <= '0';
-        next_state <= state;
-
-        case state is
-
-           
-            when IDLE =>
-                if start = '1' then
-                    next_state <= START_PULSE;
-                end if;
-
-           
-            when START_PULSE =>
-                soc        <= '1';
-                next_state <= WAIT_EOC;
-
-            
-            when WAIT_EOC =>
-                if eoc = '1' then
-                    next_state <= LATCH;
-                end if;
-
-            
-            when LATCH =>
-                data_valid <= '1';
-                next_state <= IDLE;
-
-            when others =>
-                next_state <= IDLE;
-
-        end case;
     end process;
 
     data_out1 <= data_reg;
