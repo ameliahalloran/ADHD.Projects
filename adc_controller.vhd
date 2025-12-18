@@ -4,12 +4,12 @@ use ieee.numeric_std.all;
 
 entity adc_controller is
     port (
-        pll_clk   : in  std_logic;               -- 10 MHz input clock
-        reset_n   : in  std_logic;
-        tsen      : in  std_logic;               -- temperature sensing mode
-        fifo_din  : out std_logic_vector(11 downto 0); -- changed to std_logic_vector
-        fifo_wr   : out std_logic;               -- write enable to FIFO
-        clk_dft   : out std_logic                 -- derived ADC clock
+        pll_clk  : in  std_logic;
+        reset_n  : in  std_logic;
+        tsen     : in  std_logic;
+        fifo_din : out std_logic_vector(11 downto 0);
+        fifo_wr  : out std_logic;
+        clk_dft  : out std_logic
     );
 end entity adc_controller;
 
@@ -20,13 +20,11 @@ architecture rtl of adc_controller is
     signal data_out_sig     : natural range 0 to 4095;
     signal clk_dft_sig      : std_logic;
 begin
-    --------------------------------------------------------------------
-    -- Instantiate MAX10 ADC wrapper
-    --------------------------------------------------------------------
-    adc_inst: entity work.max10_adc
+
+    adc_inst : entity work.max10_adc
         port map (
             pll_clk => pll_clk,
-            chsel   => 17,        
+            chsel   => 17,
             soc     => soc_sig,
             tsen    => tsen,
             dout    => dout_sig,
@@ -35,26 +33,19 @@ begin
         );
 
     clk_dft <= clk_dft_sig;
-    
-    --------------------------------------------------------------------
-    -- Instantiate FSM for ADC
-    --------------------------------------------------------------------
-    fsm_inst: entity work.adc_fsm1
+
+    fsm_inst : entity work.adc_fsm1
         port map (
-            clk       => pll_clk,
-            reset_n   => reset_n,
-            start     => '1',             -- always trigger conversions
-            eoc       => eoc_sig,
-            dout      => dout_sig,
-            soc       => soc_sig,
-            data_valid=> data_valid_sig,
-            data_out1 => data_out_sig
+            clock        => pll_clk,
+            reset_n    => reset_n,
+            --start      => '1',
+            eoc        => eoc_sig,
+            soc        => soc_sig,
+				
+            data_valid => data_valid_sig,
+            data_out1  => data_out_sig
         );
 
-    --------------------------------------------------------------------
-    -- Connect to FIFO
-    -- Convert natural to std_logic_vector to match top-level FIFO
-    --------------------------------------------------------------------
     fifo_din <= std_logic_vector(to_unsigned(data_out_sig, 12));
     fifo_wr  <= data_valid_sig;
 

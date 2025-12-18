@@ -85,7 +85,7 @@ package body seven_segment_pkg is
 	)return seven_segment_config is
 		variable result : seven_segment_config;
     begin
-        if lamp_mode = common_cathode then
+        if lamp_mode = common_anode then
             result := (a=>'1', b=>'1', c=>'1', d=>'1', e=>'1', f=>'1', g=>'1');
         else
             result := (a=>'0', b=>'0', c=>'0', d=>'0', e=>'0', f=>'0', g=>'0');

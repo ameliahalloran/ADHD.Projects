@@ -5,24 +5,24 @@ use ieee.numeric_std.all;
 entity fifo_sync is
     generic (
         DATA_WIDTH : natural := 12;
-        ADDR_WIDTH : natural := 4
+        ADDR_WIDTH : natural := 5
     );
     port (
-        -- Write side
-        wr_clk   : in  std_logic;
-        wr_reset : in  std_logic;
-        wr_en    : in  std_logic;
-        din      : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+        -- Write clock domain
+        wr_clk     : in  std_logic;
+        wr_reset_n : in  std_logic;
+        wren       : in  std_logic;
+        din        : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+        addr_write : out unsigned(ADDR_WIDTH-1 downto 0);
+        addr_read_w: out unsigned(ADDR_WIDTH-1 downto 0);
 
-        -- Read side
-        rd_clk   : in  std_logic;
-        rd_reset : in  std_logic;
-        rd_en    : in  std_logic;
-        dout     : out std_logic_vector(DATA_WIDTH-1 downto 0);
-
-        -- Status
-        empty    : out std_logic;
-        full     : out std_logic
+        -- Read clock domain
+        rd_clk     : in  std_logic;
+        rd_reset_n : in  std_logic;
+        adv        : in  std_logic;
+        dout       : out std_logic_vector(DATA_WIDTH-1 downto 0);
+        addr_read  : out unsigned(ADDR_WIDTH-1 downto 0);
+        addr_write_r: out unsigned(ADDR_WIDTH-1 downto 0)
     );
 end entity fifo_sync;
 
@@ -34,134 +34,108 @@ architecture rtl of fifo_sync is
     type ram_type is array (0 to DEPTH-1) of std_logic_vector(DATA_WIDTH-1 downto 0);
     signal ram : ram_type;
 
-    -- Pointers
-    signal wr_ptr_bin  : unsigned(PTR_WIDTH-1 downto 0) := (others => '0');
-    signal wr_ptr_gray : std_logic_vector(PTR_WIDTH-1 downto 0) := (others => '0');
-    signal rd_ptr_bin  : unsigned(PTR_WIDTH-1 downto 0) := (others => '0');
-    signal rd_ptr_gray : std_logic_vector(PTR_WIDTH-1 downto 0) := (others => '0');
+    -- Binary pointers
+    signal wr_bin, rd_bin : unsigned(PTR_WIDTH-1 downto 0) := (others => '0');
 
-    -- Synchronized pointers
-    signal wr_ptr_gray_sync_to_rd : std_logic_vector(PTR_WIDTH-1 downto 0);
-    signal rd_ptr_gray_sync_to_wr : std_logic_vector(PTR_WIDTH-1 downto 0);
+    -- Gray pointers
+    signal wr_gray, rd_gray : std_logic_vector(PTR_WIDTH-1 downto 0);
 
-    -- Flags
-    signal full_flag  : std_logic := '0';
-    signal empty_flag : std_logic := '1';
+    -- Synchronized Gray pointers
+    signal wr_gray_rd1, wr_gray_rd2 : std_logic_vector(PTR_WIDTH-1 downto 0);
+    signal rd_gray_wr1, rd_gray_wr2 : std_logic_vector(PTR_WIDTH-1 downto 0);
 
-    -- Registered output
-    signal dout_reg : std_logic_vector(DATA_WIDTH-1 downto 0) := (others => '0');
+    -- Binary versions of synced pointers
+    signal wr_bin_sync, rd_bin_sync : unsigned(PTR_WIDTH-1 downto 0);
 
-    -- Conversion function
-    function bin_to_gray_f(b : unsigned) return std_logic_vector is
-        variable g : unsigned(b'range);
+    -- Binary → Gray
+    function bin2gray(b : unsigned) return std_logic_vector is
     begin
-        g := (b(b'high) & (b(b'high downto 1) xor b(b'high-1 downto 0)));
-        return std_logic_vector(g);
+        return std_logic_vector(b xor (b srl 1));
+    end function;
+
+    -- Gray → Binary
+    function gray2bin(g : std_logic_vector) return unsigned is
+        variable b : unsigned(g'range);
+    begin
+        b(b'high) := g(b'high);
+        for i in b'high-1 downto 0 loop
+            b(i) := b(i+1) xor g(i);
+        end loop;
+        return b;
     end function;
 
 begin
 
-    --------------------------------------------------------------------
-    -- Synchronize pointers across clock domains
-    --------------------------------------------------------------------
-    wr_ptr_sync_inst : entity work.crossing_addr
-        generic map (ADDR_WIDTH => ADDR_WIDTH)
-        port map (
-            data_in  => std_logic_vector(wr_ptr_bin),
-            data_out => wr_ptr_gray_sync_to_rd,
-            clk_a    => wr_clk,
-            reset    => wr_reset,
-            clk_b    => rd_clk
-        );
-
-    rd_ptr_sync_inst : entity work.crossing_addr
-        generic map (ADDR_WIDTH => ADDR_WIDTH)
-        port map (
-            data_in  => std_logic_vector(rd_ptr_bin),
-            data_out => rd_ptr_gray_sync_to_wr,
-            clk_a    => rd_clk,
-            reset    => rd_reset,
-            clk_b    => wr_clk
-        );
-
-    --------------------------------------------------------------------
-    -- Write process
-    --------------------------------------------------------------------
-    process(wr_clk, wr_reset)
-        variable wr_addr : natural;
-        variable wr_ptr_bin_next  : unsigned(PTR_WIDTH-1 downto 0);
-        variable wr_ptr_gray_next : std_logic_vector(PTR_WIDTH-1 downto 0);
+    ------------------------------------------------------------------
+    -- WRITE DOMAIN
+    ------------------------------------------------------------------
+    process(wr_clk, wr_reset_n)
     begin
-        if wr_reset = '1' then
-            wr_ptr_bin  <= (others => '0');
-            wr_ptr_gray <= (others => '0');
-            full_flag   <= '0';
+        if wr_reset_n = '0' then
+            wr_bin <= (others => '0');
         elsif rising_edge(wr_clk) then
-            wr_ptr_bin_next  := wr_ptr_bin;
-            wr_ptr_gray_next := wr_ptr_gray;
-
-            if (wr_en = '1') and (full_flag = '0') then
-                wr_addr := to_integer(wr_ptr_bin(ADDR_WIDTH-1 downto 0));
-                ram(wr_addr) <= din;
-
-                wr_ptr_bin_next  := wr_ptr_bin + 1;
-                wr_ptr_gray_next := bin_to_gray_f(wr_ptr_bin_next);
-            end if;
-
-            wr_ptr_bin  <= wr_ptr_bin_next;
-            wr_ptr_gray <= wr_ptr_gray_next;
-
-            -- Full flag
-            if (wr_ptr_gray_next(PTR_WIDTH-1 downto PTR_WIDTH-2) =
-                not rd_ptr_gray_sync_to_wr(PTR_WIDTH-1 downto PTR_WIDTH-2)) and
-               (wr_ptr_gray_next(PTR_WIDTH-3 downto 0) =
-                rd_ptr_gray_sync_to_wr(PTR_WIDTH-3 downto 0)) then
-                full_flag <= '1';
-            else
-                full_flag <= '0';
+            if wren = '1' then
+                ram(to_integer(wr_bin(ADDR_WIDTH-1 downto 0))) <= din;
+                wr_bin <= wr_bin + 1;
             end if;
         end if;
     end process;
 
-    --------------------------------------------------------------------
-    -- Read process
-    --------------------------------------------------------------------
-    process(rd_clk, rd_reset)
-        variable rd_addr : natural;
-        variable rd_ptr_bin_next  : unsigned(PTR_WIDTH-1 downto 0);
-        variable rd_ptr_gray_next : std_logic_vector(PTR_WIDTH-1 downto 0);
+    wr_gray <= bin2gray(wr_bin);
+
+    ------------------------------------------------------------------
+    -- READ DOMAIN
+    ------------------------------------------------------------------
+    process(rd_clk, rd_reset_n)
     begin
-        if rd_reset = '1' then
-            rd_ptr_bin  <= (others => '0');
-            rd_ptr_gray <= (others => '0');
-            empty_flag  <= '1';
-            dout_reg    <= (others => '0');
+        if rd_reset_n = '0' then
+            rd_bin <= (others => '0');
+            dout   <= (others => '0');
         elsif rising_edge(rd_clk) then
-            rd_ptr_bin_next  := rd_ptr_bin;
-            rd_ptr_gray_next := rd_ptr_gray;
-
-            if (rd_en = '1') and (empty_flag = '0') then
-                rd_addr   := to_integer(rd_ptr_bin(ADDR_WIDTH-1 downto 0));
-                dout_reg  <= ram(rd_addr);
-
-                rd_ptr_bin_next  := rd_ptr_bin + 1;
-                rd_ptr_gray_next := bin_to_gray_f(rd_ptr_bin_next);
-            end if;
-
-            rd_ptr_bin  <= rd_ptr_bin_next;
-            rd_ptr_gray <= rd_ptr_gray_next;
-
-            -- Empty flag
-            if wr_ptr_gray_sync_to_rd = rd_ptr_gray_next then
-                empty_flag <= '1';
-            else
-                empty_flag <= '0';
+            if adv = '1' then
+                dout <= ram(to_integer(rd_bin(ADDR_WIDTH-1 downto 0)));
+                rd_bin <= rd_bin + 1;
             end if;
         end if;
     end process;
 
-    dout  <= dout_reg;
-    empty <= empty_flag;
-    full  <= full_flag;
+    rd_gray <= bin2gray(rd_bin);
+
+    ------------------------------------------------------------------
+    -- Pointer Synchronizers
+    ------------------------------------------------------------------
+    process(rd_clk, rd_reset_n)
+    begin
+        if rd_reset_n = '0' then
+            wr_gray_rd1 <= (others => '0');
+            wr_gray_rd2 <= (others => '0');
+        elsif rising_edge(rd_clk) then
+            wr_gray_rd1 <= wr_gray;
+            wr_gray_rd2 <= wr_gray_rd1;
+        end if;
+    end process;
+
+    process(wr_clk, wr_reset_n)
+    begin
+        if wr_reset_n = '0' then
+            rd_gray_wr1 <= (others => '0');
+            rd_gray_wr2 <= (others => '0');
+        elsif rising_edge(wr_clk) then
+            rd_gray_wr1 <= rd_gray;
+            rd_gray_wr2 <= rd_gray_wr1;
+        end if;
+    end process;
+
+    ------------------------------------------------------------------
+    -- Export binary addresses for FSMs
+    ------------------------------------------------------------------
+    wr_bin_sync <= gray2bin(rd_gray_wr2);
+    rd_bin_sync <= gray2bin(wr_gray_rd2);
+
+    addr_write   <= wr_bin(ADDR_WIDTH-1 downto 0);
+    addr_read    <= rd_bin(ADDR_WIDTH-1 downto 0);
+
+    addr_read_w  <= wr_bin_sync(ADDR_WIDTH-1 downto 0);
+    addr_write_r <= rd_bin_sync(ADDR_WIDTH-1 downto 0);
 
 end architecture rtl;
