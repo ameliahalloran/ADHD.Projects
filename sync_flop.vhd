@@ -3,7 +3,7 @@ use ieee.std_logic_1164.all;
 
 entity sync_flop is
 	generic (
-		WIDTH : natural := 1
+		WIDTH : positive := 1
 		);
     port (
         clk     : in  std_logic;   -- destination clock
@@ -18,7 +18,7 @@ architecture rtl of sync_flop is
 begin
     process(clk, reset)
     begin
-        if reset = '1' then
+        if reset = '0' then
             q <= (others => '0');
         elsif rising_edge(clk) then
             q <= din;

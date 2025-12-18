@@ -2,67 +2,83 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity adc_fsm is 
-	port(
-		clk       : in  std_logic;  -- 1 MHz ADC clock
-      reset_n   : in  std_logic;
-      start     : in  std_logic;  -- external trigger (could be '1' always)
-      eoc       : in  std_logic;  -- end of conversion from ADC
-      dout      : in  natural range 0 to 2**12 - 1; -- ADC output
-      soc       : out std_logic;  -- start of conversion
-      data_valid: out std_logic;  -- pulse when new data is ready
-      data_out  : out natural range 0 to 2**12 - 1  -- latched ADC value
+entity adc_fsm is
+	generic (
+		addr_width:	positive := 5
+	);
+	port (
+		clock:		in	std_logic;
+		reset_n:	in	std_logic;
+		
+		-- adc signals
+		soc:		out	std_logic;
+		eoc:		in	std_logic;
+		
+		-- ring buffer signals
+		addr_write:	out	unsigned(addr_width - 1 downto 0);
+		addr_read:	in	unsigned(addr_width - 1 downto 0);
+		wren:		out	std_logic
 	);
 end entity adc_fsm;
 
-architecture rtl of adc_fsm is
-	type state_type is (IDLE, START_CONV, WAIT_EOC, LATCH);
-	signal state, next_state : state_type;
-	signal data_reg : natural range 0 to 2**12 - 1;
-begin
-	process(clk, reset_n)
-	begin
-		if reset_n = '0'then
-			state <= IDLE;
-			data_reg <= 0;
-		elsif rising_edge(clk) then
-			state <= next_state;
-			if state = LATCH then
-				data_reg <= dout;
-			end if;
-		end if;
-	end process;
+architecture fsm of adc_fsm is
+	type state_type is ( start_conv, wait_conv, wait_addr, store );
+	signal state, next_state: state_type;
 	
-	process(state, start, eoc)
-    begin
-        soc <= '0';
-        data_valid <= '0';
-        next_state <= state;
+	signal current_addr, next_addr: unsigned(addr_width - 1 downto 0);
+begin
+	-- compute next address at all times
+	next_addr <= current_addr + 1;
+	
+	store_state: process(clock, reset_n) is
+	begin
+		if reset_n = '0' then
+			state <= start_conv;
+		elsif rising_edge(clock) then
+			state <= next_state;
+		end if;
+	end process store_state;
+	
+	transition_fn: process(state, next_addr, addr_read, eoc) is
+	begin
+		next_state <= state;
+		case state is
+			when start_conv =>
+				next_state <= wait_conv;
+			when wait_conv =>
+				if eoc = '1' then
+					next_state <= wait_addr;
+				end if;
+			when wait_addr =>
+				if next_addr /= addr_read then
+					next_state <= store;
+				end if;
+			when store =>
+				next_addr <= start_conv;
+		end case;
+	end process transition_fn;
+	
+	output_fn: process(clock, reset_n) is
+	begin
+		if reset_n = '0' then
+			current_addr <= (others => '0');
+			wren <= '0';
+			soc <= '0';
+		elsif rising_edge(clock) then
+			-- default values for signals
+			soc <= '0';
+			wren <= '0';
+			
+			case state is
+				when start =>
+					soc <= '1';
+				when wait_conv | wait_addr =>
+					null;
+				when store =>
+					wren <= '1';
+					current_addr <= next_addr;
+			end case;
+		end if;
+	end process output_fn;
 
-        case state is
-            when IDLE =>
-                if start = '1' then
-                    soc <= '1';
-                    next_state <= START_CONV;
-                end if;
-
-            when START_CONV =>
-                soc <= '1';
-                next_state <= WAIT_EOC;
-
-            when WAIT_EOC =>
-                if eoc = '1' then
-                    next_state <= LATCH;
-                end if;
-
-            when LATCH =>
-                data_valid <= '1';
-                next_state <= IDLE;
-
-            when others =>
-                next_state <= IDLE;
-        end case;
-    end process;
-
-    data_out <= data_reg;
-end architecture rtl;
+end architecture fsm;
